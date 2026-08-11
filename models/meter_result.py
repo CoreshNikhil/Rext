@@ -33,6 +33,7 @@ class VisionModelOutput(BaseModel):
     raw_digits: Optional[str] = None
     reading: Optional[str] = None
     unit: Optional[str] = None
+    serial_number: Optional[str] = None
     confidence: float = 0.0
     image_quality: str = ImageQuality.UNKNOWN.value
     needs_retake: bool = True
@@ -52,6 +53,7 @@ class MeterReadingResult(BaseModel):
     raw_digits: Optional[str] = None
     reading: Optional[str] = None
     unit: Optional[str] = None
+    serial_number: Optional[str] = None
     confidence: float = 0.0
     image_quality: str = ImageQuality.UNKNOWN.value
     needs_retake: bool = True

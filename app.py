@@ -49,6 +49,9 @@ def render_accepted(result: MeterReadingResult) -> None:
     st.progress(min(max(result.confidence, 0.0), 1.0))
     st.markdown(f"{result.confidence * 100:.0f}%")
 
+    if result.serial_number:
+        st.markdown(f"**Serial number:** {result.serial_number}")
+
     st.success(f"✓ Status: {result.status.value.replace('_', ' ').title()}")
 
 
@@ -61,6 +64,9 @@ def render_needs_attention(result: MeterReadingResult) -> None:
         unit_suffix = f" {result.unit}" if result.unit else ""
         st.markdown(f"## {result.reading}{unit_suffix}")
         st.markdown(f"Confidence: {result.confidence * 100:.0f}%")
+
+    if result.serial_number:
+        st.markdown(f"**Serial number:** {result.serial_number}")
 
     st.warning("⚠ Reading could not be reliably determined.")
 

@@ -20,6 +20,7 @@ from models.meter_result import (
 RAW_DIGITS_PATTERN = re.compile(r"^\d+$")
 READING_PATTERN = re.compile(r"^\d+(\.\d+)?$")
 UNIT_PATTERN = re.compile(r"^[A-Za-z0-9³/.\-\s]{1,10}$")
+SERIAL_NUMBER_PATTERN = re.compile(r"^[A-Za-z0-9\-/\s]{3,30}$")
 
 
 def validate_output(
@@ -85,6 +86,22 @@ def validate_output(
 
     if output.unit is not None and not UNIT_PATTERN.match(output.unit):
         notes.append(f"unit '{output.unit}' has an unexpected format.")
+
+    if output.serial_number is not None and not SERIAL_NUMBER_PATTERN.match(output.serial_number):
+        notes.append(f"serial_number '{output.serial_number}' has an unexpected format.")
+
+    if (
+        output.raw_digits
+        and output.serial_number
+        and output.raw_digits == output.serial_number
+    ):
+        # The whole point of separating these fields is to avoid exactly this
+        # mix-up — treat it as a hard failure, not a soft note.
+        notes.append(
+            "raw_digits and serial_number are identical — the model likely confused the "
+            "reading display with the serial number."
+        )
+        passes = False
 
     if not (0.0 <= output.confidence <= 1.0):
         notes.append(f"Confidence {output.confidence} is outside the valid [0, 1] range.")

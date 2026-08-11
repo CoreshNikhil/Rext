@@ -147,3 +147,26 @@ def test_result_preserves_original_model_fields():
     assert result.raw_digits == output.raw_digits
     assert result.reading == output.reading
     assert result.unit == output.unit
+
+
+def test_serial_number_is_preserved_when_distinct_from_reading():
+    output = make_output(serial_number="16710009")
+    result = validate_output(output)
+    assert result.status == ReviewStatus.ACCEPTED
+    assert result.serial_number == "16710009"
+
+
+def test_missing_serial_number_does_not_block_acceptance():
+    output = make_output(serial_number=None)
+    result = validate_output(output)
+    assert result.status == ReviewStatus.ACCEPTED
+
+
+def test_serial_number_matching_raw_digits_is_flagged_as_confusion():
+    # If the model reports the same value for both fields, it almost
+    # certainly read the serial number into the reading (or vice versa) —
+    # exactly the mix-up this tool exists to prevent.
+    output = make_output(raw_digits="16710009", reading="16710009", serial_number="16710009")
+    result = validate_output(output, confidence_threshold=0.5)
+    assert result.status == ReviewStatus.NEEDS_REVIEW
+    assert any("confused the reading display with the serial number" in note for note in result.validation_notes)

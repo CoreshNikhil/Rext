@@ -4,12 +4,14 @@ AI-powered extraction of the numeric reading from a photograph of a gas,
 water, or electricity meter. Given a real-world photo (blurry, tilted,
 glare, poor lighting, cropped, cluttered with unrelated printed text), the
 system locates the meter's digit-window reading display and returns
-**only** that reading — not a nearby serial number, model number, or spec
-plate — as structured, validated JSON.
+structured, validated JSON — the reading itself, plus (separately) the
+meter's serial number if it's legibly printed nearby. The two are never
+allowed to be confused with each other; see "How results are judged" below.
 
 This is **not** a generic OCR tool: the vision prompt and the application-
 side validation are specifically designed to distinguish the reading
-display from other numbers printed on the meter body.
+display from other numbers printed on the meter body, while still
+capturing useful metadata like the serial number as its own field.
 
 ## Pipeline
 
@@ -112,6 +114,10 @@ blindly**. `vision/validation.py` independently checks:
   `CONFIDENCE_THRESHOLD` (default `0.85`, configurable via `.env`)
 - did the model itself flag `needs_retake` or rate `image_quality` as
   `"poor"`
+- if a `serial_number` was also returned, is it identical to `raw_digits`
+  — if so, the model almost certainly confused the reading display with
+  the serial number, and the result is forced to `needs_review` even if
+  confidence was high
 
 Based on these checks, each result gets one of three statuses:
 
@@ -133,7 +139,7 @@ against each of these cases and confirm the behavior described:
 | Dark image | Photograph in low light / shadow | Brightness/contrast-enhanced variant is sent to the model; if still too dark, expect **needs_review**, `image_quality: "poor"` |
 | Glare | Use direct flash/sunlight on the glass cover so part of the display is blown out | Glare-reduction variant is sent; if glare still hides digits, expect `raw_digits`/`reading` = null and a glare-specific reason, never a fabricated digit |
 | Partial/cropped meter | Frame the photo so part of the digit display is cut off | Expect `display_detected` possibly false, or a reason noting the display is incomplete; never a guessed missing digit |
-| Unrelated numbers nearby | Include the serial number / spec plate clearly in frame along with the display | The extracted `reading` should come from the digit-window display, not the serial/spec number — check `raw_digits` length and value against what's actually in the display windows, not the plate |
+| Unrelated numbers nearby | Include the serial number / spec plate clearly in frame along with the display | The extracted `reading` should come from the digit-window display, not the serial/spec number — check `raw_digits` length and value against what's actually in the display windows, not the plate. If a serial number is legible, it should also show up separately in `serial_number`, distinct from `raw_digits` |
 
 For each case, also check the **"Raw structured result (debug)"** expander
 in the UI to inspect the full JSON (`meter_detected`, `display_detected`,
