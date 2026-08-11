@@ -1,0 +1,8 @@
+google-genai==2.17.0
+opencv-python-headless==5.0.0.93
+pillow==12.3.0
+numpy==2.5.2
+pydantic==2.13.4
+python-dotenv==1.2.2
+streamlit==1.61.1
+pytest==9.1.1

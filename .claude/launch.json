@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "metervision",
+      "runtimeExecutable": ".venv/bin/streamlit",
+      "runtimeArgs": ["run", "app.py", "--server.headless=true", "--server.address=0.0.0.0"],
+      "port": 8501
+    }
+  ]
+}
