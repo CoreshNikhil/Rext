@@ -20,3 +20,11 @@ htmlcov/
 # Local test photos (may contain personal/property info) — keep out of the repo
 sample_images/*
 !sample_images/README.md
+
+# Backend runtime data — never commit resident photos, the SQLite DB, or uploaded spreadsheets
+backend/storage/meter_images/*
+!backend/storage/meter_images/.gitkeep
+backend/storage/imports/*
+!backend/storage/imports/.gitkeep
+backend/*.db
+backend/*.db-journal
