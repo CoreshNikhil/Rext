@@ -11,6 +11,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from backend.core import deps, security
+from backend.core.rate_limit import limiter
 from backend.db import models  # noqa: F401 - registers every table on Base.metadata
 from backend.db.base import Base
 from backend.db.models.admin_user import AdminUser
@@ -79,12 +80,40 @@ def client_and_session():
     app.dependency_overrides[deps.get_db] = override_get_db
     client = TestClient(app)
 
+    # slowapi's default in-memory storage is a module-level singleton keyed
+    # by client IP, and Starlette's TestClient reports the same fake IP for
+    # every request. Without a reset, rate-limit counters would accumulate
+    # across every test in the run (all sharing one process) instead of
+    # resetting per test — reset here so each test starts with a clean quota.
+    limiter.reset()
+
     setup_session = test_session_factory()
     try:
         yield client, setup_session
     finally:
         setup_session.close()
         app.dependency_overrides.clear()
+        engine.dispose()
+
+
+@pytest.fixture()
+def jobs_db(monkeypatch):
+    """Scheduled jobs open their own DB session via backend.jobs.definitions'
+    module-level SessionLocal (there's no request-scoped Depends(get_db)
+    outside an HTTP request), so this monkeypatches that name to point at an
+    isolated in-memory test DB — the standard pattern for testing background
+    jobs that don't go through FastAPI's DI."""
+    from backend.jobs import definitions
+
+    engine = _new_test_engine()
+    session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+    monkeypatch.setattr(definitions, "SessionLocal", session_factory)
+
+    setup_session = session_factory()
+    try:
+        yield setup_session
+    finally:
+        setup_session.close()
         engine.dispose()
 
 

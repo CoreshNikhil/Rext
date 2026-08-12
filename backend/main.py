@@ -10,6 +10,10 @@ Phase 7 adds notifications and the scheduled-job system (billing-cycle
 kickoff, deadline checks, fine accrual, reminders) on top of Phases 1-6.
 Also includes the admin dashboard and system-config endpoints, which were
 in the original approved design but hadn't been assigned to any phase.
+
+Phase 8 adds slowapi rate limiting (see core/rate_limit.py and the
+@limiter.limit(...) decorators on the auth/payment routers) and a uniform
+JSON error envelope for every error response (see core/error_handlers.py).
 """
 
 from __future__ import annotations
@@ -18,8 +22,11 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi.middleware import SlowAPIMiddleware
 
 from backend.core.config import settings
+from backend.core.error_handlers import register_error_handlers
+from backend.core.rate_limit import limiter
 from backend.jobs.scheduler import start_scheduler, stop_scheduler
 from backend.routers import (
     admin_auth,
@@ -45,6 +52,10 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Gas Billing System API", version="0.1.0", lifespan=lifespan)
+
+app.state.limiter = limiter
+register_error_handlers(app)
+app.add_middleware(SlowAPIMiddleware)
 
 app.add_middleware(
     CORSMiddleware,

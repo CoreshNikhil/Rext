@@ -224,9 +224,21 @@ def list_meters(db: Session, resident_id: int) -> list[Meter]:
 
 
 def update_own_email(db: Session, resident: Resident, email: str | None) -> Resident:
+    before_email = resident.email
     resident.email = email
     db.commit()
     db.refresh(resident)
+
+    audit_service.record(
+        db,
+        actor_type=ActorType.RESIDENT,
+        actor_id=resident.resident_id,
+        action="resident.update",
+        entity_type="resident",
+        entity_id=resident.resident_id,
+        before_state={"email": before_email},
+        after_state={"email": resident.email},
+    )
     return resident
 
 

@@ -8,12 +8,13 @@ core.exceptions.auth_error_status_code — no business logic here.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from backend.core.config import settings
 from backend.core.deps import get_db, get_otp_provider
 from backend.core.exceptions import AuthError, auth_error_status_code
+from backend.core.rate_limit import limiter, mobile_number_key
 from backend.providers.otp.base import OTPProvider
 from backend.schemas.auth import (
     LogoutRequest,
@@ -41,7 +42,10 @@ def _dev_otp(raw_otp: str) -> str | None:
 
 
 @router.post("/resident/signup/request-otp", response_model=SignupRequestOtpResponse)
+@limiter.limit("10/hour")
+@limiter.limit("3/hour", key_func=mobile_number_key)
 def signup_request_otp(
+    request: Request,
     payload: SignupRequestOtpRequest,
     db: Session = Depends(get_db),
     otp_provider: OTPProvider = Depends(get_otp_provider),
@@ -75,7 +79,8 @@ def signup_set_password(payload: SignupSetPasswordRequest, db: Session = Depends
 
 
 @router.post("/resident/login", response_model=TokenPairResponse)
-def resident_login(payload: ResidentLoginRequest, db: Session = Depends(get_db)) -> TokenPairResponse:
+@limiter.limit("5/minute")
+def resident_login(request: Request, payload: ResidentLoginRequest, db: Session = Depends(get_db)) -> TokenPairResponse:
     try:
         return auth_service.login_resident(db, payload.house_number, payload.password)
     except AuthError as exc:
@@ -83,7 +88,10 @@ def resident_login(payload: ResidentLoginRequest, db: Session = Depends(get_db))
 
 
 @router.post("/resident/password-reset/request-otp", response_model=SignupRequestOtpResponse)
+@limiter.limit("10/hour")
+@limiter.limit("3/hour", key_func=mobile_number_key)
 def password_reset_request_otp(
+    request: Request,
     payload: PasswordResetRequestOtpRequest,
     db: Session = Depends(get_db),
     otp_provider: OTPProvider = Depends(get_otp_provider),

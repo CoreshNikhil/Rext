@@ -15,13 +15,6 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
 
-import pytest
-from sqlalchemy import create_engine, event
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
-
-from backend.db import models  # noqa: F401 - registers every table on Base.metadata
-from backend.db.base import Base
 from backend.db.models.bill import Bill
 from backend.db.models.billing_period import BillingPeriod
 from backend.db.models.enums import (
@@ -37,31 +30,6 @@ from backend.db.models.import_job import ImportJob
 from backend.db.models.notification import Notification
 from backend.jobs import definitions
 from backend.tests.conftest import seed_admin, seed_billing_period, seed_finalized_reading, seed_meter, seed_resident
-
-
-@pytest.fixture()
-def jobs_db(monkeypatch):
-    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-
-    @event.listens_for(engine, "connect")
-    def _enable_foreign_keys(dbapi_connection, connection_record) -> None:
-        cursor = dbapi_connection.cursor()
-        cursor.execute("PRAGMA foreign_keys=ON")
-        cursor.close()
-
-    Base.metadata.create_all(bind=engine)
-    session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False)
-
-    # Jobs call `SessionLocal()` directly (not through FastAPI's DI), so
-    # this is the module-level name that needs redirecting for the test.
-    monkeypatch.setattr(definitions, "SessionLocal", session_factory)
-
-    setup_session = session_factory()
-    try:
-        yield setup_session
-    finally:
-        setup_session.close()
-        engine.dispose()
 
 
 # --- billing_cycle_kickoff ------------------------------------------------

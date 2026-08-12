@@ -9,11 +9,12 @@ auth.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from backend.core.deps import get_current_admin, get_current_resident, get_db, get_payment_provider
 from backend.core.domain_exceptions import DomainError, domain_error_status_code
+from backend.core.rate_limit import limiter
 from backend.db.models.admin_user import AdminUser
 from backend.db.models.enums import PaymentStatus
 from backend.db.models.resident import Resident
@@ -43,7 +44,9 @@ def initiate_payment(
 
 
 @resident_router.post("/payments/{payment_id}/mock-confirm", response_model=PaymentResponse)
+@limiter.limit("10/minute")
 def mock_confirm_payment(
+    request: Request,
     payment_id: int,
     payload: MockConfirmRequest,
     resident: Resident = Depends(get_current_resident),
