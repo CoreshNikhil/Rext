@@ -16,9 +16,11 @@ from backend.db.base import Base
 from backend.db.models.admin_user import AdminUser
 from backend.db.models.billing_period import BillingPeriod
 from backend.db.models.community import Community
-from backend.db.models.enums import BillingPeriodStatus
+from backend.db.models.enums import BillingPeriodStatus, MeterReadingStatus, SubmittedBy
 from backend.db.models.meter import Meter
+from backend.db.models.meter_reading import MeterReading
 from backend.db.models.resident import Resident
+from models.meter_result import ReviewStatus
 from providers.base import VisionProvider
 
 
@@ -156,6 +158,40 @@ def seed_billing_period(
     db.commit()
     db.refresh(period)
     return period
+
+
+def seed_finalized_reading(
+    db,
+    resident: Resident,
+    meter: Meter,
+    billing_period: BillingPeriod,
+    *,
+    previous: Decimal = Decimal("100.000"),
+    final: Decimal = Decimal("115.197"),
+    admin_overridden: bool = False,
+) -> MeterReading:
+    """A reading already in a finalized (billable) state, bypassing the
+    real AI call — for tests that only care about downstream billing
+    behavior, not the extraction pipeline itself."""
+    reading = MeterReading(
+        billing_period_id=billing_period.billing_period_id,
+        meter_id=meter.meter_id,
+        resident_id=resident.resident_id,
+        image_path="backend/storage/meter_images/test/test.jpg",
+        previous_reading_value=previous,
+        submitted_reading_value=final,
+        raw_digits=str(final).replace(".", ""),
+        unit="m3",
+        ai_confidence=Decimal("0.950"),
+        ai_status=ReviewStatus.ACCEPTED,
+        status=MeterReadingStatus.ADMIN_OVERRIDDEN if admin_overridden else MeterReadingStatus.RESIDENT_CONFIRMED,
+        submitted_by=SubmittedBy.RESIDENT,
+        final_reading_value=final,
+    )
+    db.add(reading)
+    db.commit()
+    db.refresh(reading)
+    return reading
 
 
 class FakeVisionProvider(VisionProvider):
