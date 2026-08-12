@@ -72,7 +72,7 @@ def _get_active_meter(db: Session, resident: Resident) -> Meter:
     return meter
 
 
-def _get_previous_reading_value(db: Session, resident: Resident) -> Decimal:
+def get_previous_reading_value(db: Session, resident: Resident) -> Decimal:
     """Most recent finalized reading for this resident, across all past
     billing periods — independent of Bill (which doesn't exist until
     Phase 5's billing engine runs). Defaults to 0 for a brand-new meter."""
@@ -145,7 +145,7 @@ def submit_meter_reading(
     # router maps it to 502.
     result = analyze_meter_image(image_bytes, vision_provider)
 
-    previous_reading_value = _get_previous_reading_value(db, resident)
+    previous_reading_value = get_previous_reading_value(db, resident)
     submitted_reading_value = Decimal(result.reading) if result.reading else None
     reading_status = _AI_STATUS_TO_READING_STATUS[result.status]
 

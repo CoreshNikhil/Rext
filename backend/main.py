@@ -29,6 +29,7 @@ from backend.routers import (
     meters,
     notifications,
     payments,
+    resident,
 )
 
 
@@ -51,6 +52,7 @@ app.add_middleware(
 
 app.include_router(auth.router)
 app.include_router(admin_auth.router)
+app.include_router(resident.router)
 app.include_router(admin_residents.router)
 app.include_router(admin_import.router)
 app.include_router(meters.resident_router)

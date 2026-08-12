@@ -1,8 +1,10 @@
-"""Pydantic v2 request/response DTOs for admin resident management."""
+"""Pydantic v2 request/response DTOs for admin resident management and
+the resident's own profile/home dashboard."""
 
 from __future__ import annotations
 
 from datetime import date, datetime
+from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -53,3 +55,29 @@ class ResidentUpdateRequest(BaseModel):
     mobile_number: str | None = Field(default=None, min_length=1, max_length=15)
     email: str | None = Field(default=None, max_length=255)
     is_active: bool | None = None
+
+
+class ResidentHomeResponse(BaseModel):
+    """Matches the spec's home-screen mockup: gas rate, deadline, previous
+    vs current reading, amount, payment status — one call for the whole
+    dashboard rather than the client stitching together several."""
+
+    resident_id: int
+    house_number: str
+    full_name: str
+
+    billing_period_id: int | None
+    period_label: str | None
+    gas_rate_per_unit: Decimal | None
+    reading_deadline: date | None
+    billing_period_status: str | None
+
+    reading_status: str | None  # None if nothing submitted yet this period
+    previous_reading_value: Decimal | None
+    current_reading_value: Decimal | None
+
+    bill_id: int | None
+    amount_due: Decimal | None
+    payment_status: str | None
+
+    unread_notification_count: int

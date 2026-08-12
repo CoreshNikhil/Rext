@@ -16,12 +16,17 @@ from sqlalchemy.orm import Session
 from backend.core import security
 from backend.core.domain_exceptions import ConflictError, NotFoundError
 from backend.db.models.admin_user import AdminUser
-from backend.db.models.enums import ActorType, TokenSubjectType
+from backend.db.models.bill import Bill
+from backend.db.models.billing_period import BillingPeriod
+from backend.db.models.enums import ActorType, BillingPeriodStatus, TokenSubjectType
 from backend.db.models.meter import Meter
+from backend.db.models.meter_reading import MeterReading
+from backend.db.models.notification import Notification
 from backend.db.models.resident import Resident
-from backend.schemas.resident import ResidentCreateRequest, ResidentUpdateRequest
+from backend.schemas.resident import ResidentCreateRequest, ResidentHomeResponse, ResidentUpdateRequest
 from backend.services import audit_service
 from backend.services.auth_service import revoke_all_refresh_tokens
+from backend.services.meter_reading_service import get_previous_reading_value
 
 
 def list_residents(db: Session, *, active_only: bool = False, search: str | None = None) -> list[Resident]:
@@ -216,3 +221,65 @@ def assign_meter(
 def list_meters(db: Session, resident_id: int) -> list[Meter]:
     get_resident(db, resident_id)  # raises NotFoundError if the resident doesn't exist
     return db.query(Meter).filter(Meter.resident_id == resident_id).all()
+
+
+def get_home_summary(db: Session, resident: Resident) -> ResidentHomeResponse:
+    """One call for the resident's whole home screen: current billing
+    period status, submission/payment state, and unread notification
+    count — matching the spec's home-screen mockup directly."""
+    period = (
+        db.query(BillingPeriod)
+        .filter(BillingPeriod.community_id == resident.community_id, BillingPeriod.status == BillingPeriodStatus.OPEN_FOR_READINGS)
+        .order_by(BillingPeriod.reading_window_start.desc(), BillingPeriod.billing_period_id.desc())
+        .first()
+    )
+    if period is None:
+        # No period currently open — fall back to the most recent one so
+        # the resident still sees their last cycle's outcome, not a blank
+        # screen, between billing cycles.
+        period = (
+            db.query(BillingPeriod)
+            .filter(BillingPeriod.community_id == resident.community_id)
+            .order_by(BillingPeriod.reading_window_start.desc(), BillingPeriod.billing_period_id.desc())
+            .first()
+        )
+
+    reading = None
+    bill = None
+    if period is not None:
+        reading = (
+            db.query(MeterReading)
+            .filter(MeterReading.billing_period_id == period.billing_period_id, MeterReading.resident_id == resident.resident_id)
+            .first()
+        )
+        bill = (
+            db.query(Bill)
+            .filter(Bill.billing_period_id == period.billing_period_id, Bill.resident_id == resident.resident_id)
+            .first()
+        )
+
+    unread_count = (
+        db.query(Notification)
+        .filter(Notification.resident_id == resident.resident_id, Notification.is_read.is_(False))
+        .count()
+    )
+
+    return ResidentHomeResponse(
+        resident_id=resident.resident_id,
+        house_number=resident.house_number,
+        full_name=resident.full_name,
+        billing_period_id=period.billing_period_id if period else None,
+        period_label=period.period_label if period else None,
+        gas_rate_per_unit=period.rate_per_unit if period else None,
+        reading_deadline=period.reading_window_end if period else None,
+        billing_period_status=period.status.value if period else None,
+        reading_status=reading.status.value if reading else None,
+        previous_reading_value=(
+            reading.previous_reading_value if reading else (get_previous_reading_value(db, resident) if period else None)
+        ),
+        current_reading_value=reading.submitted_reading_value if reading else None,
+        bill_id=bill.bill_id if bill else None,
+        amount_due=bill.total_amount_due if bill else None,
+        payment_status=bill.status.value if bill else None,
+        unread_notification_count=unread_count,
+    )
