@@ -22,6 +22,8 @@ from backend.db.models.resident import Resident
 from backend.db.session import SessionLocal
 from backend.providers.otp.base import OTPProvider
 from backend.providers.otp.mock_otp_provider import MockOTPProvider
+from backend.providers.payment.base import PaymentProvider
+from backend.providers.payment.mock_payment_provider import MockPaymentProvider
 
 bearer_scheme = HTTPBearer(auto_error=True)
 
@@ -33,6 +35,13 @@ _otp_provider = MockOTPProvider()
 
 def get_otp_provider() -> OTPProvider:
     return _otp_provider
+
+
+_payment_provider = MockPaymentProvider()
+
+
+def get_payment_provider() -> PaymentProvider:
+    return _payment_provider
 
 
 # Constructed lazily on first use, not at import/startup time — mirrors

@@ -6,9 +6,8 @@ the existing app.py Streamlit prototype:
 
     uvicorn backend.main:app --reload
 
-Phase 5 adds the billing engine (BillingPeriod lifecycle, Bill generation)
-on top of Phases 1-4. Payments/notifications/scheduled jobs are added in
-later phases.
+Phase 6 adds payments (mock provider, Bill -> PAID wiring) on top of
+Phases 1-5. Notifications/scheduled jobs are added in later phases.
 """
 
 from __future__ import annotations
@@ -17,7 +16,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.core.config import settings
-from backend.routers import admin_auth, admin_billing, admin_import, admin_residents, auth, billing, meters
+from backend.routers import admin_auth, admin_billing, admin_import, admin_residents, auth, billing, meters, payments
 
 app = FastAPI(title="Gas Billing System API", version="0.1.0")
 
@@ -38,6 +37,9 @@ app.include_router(meters.admin_router)
 app.include_router(billing.router)
 app.include_router(admin_billing.billing_period_router)
 app.include_router(admin_billing.bill_router)
+app.include_router(payments.resident_router)
+app.include_router(payments.admin_router)
+app.include_router(payments.public_router)
 
 
 @app.get("/health")
