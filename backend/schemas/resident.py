@@ -57,6 +57,15 @@ class ResidentUpdateRequest(BaseModel):
     is_active: bool | None = None
 
 
+class ResidentSelfUpdateRequest(BaseModel):
+    """Deliberately narrow — a resident can only ever update their own
+    email here. Mobile number changes go through the OTP-verified
+    password-reset-style flow, never a plain field edit; house_number is
+    never client-editable at all."""
+
+    email: str | None = Field(default=None, max_length=255)
+
+
 class ResidentHomeResponse(BaseModel):
     """Matches the spec's home-screen mockup: gas rate, deadline, previous
     vs current reading, amount, payment status — one call for the whole

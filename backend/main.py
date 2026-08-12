@@ -8,6 +8,8 @@ the existing app.py Streamlit prototype:
 
 Phase 7 adds notifications and the scheduled-job system (billing-cycle
 kickoff, deadline checks, fine accrual, reminders) on top of Phases 1-6.
+Also includes the admin dashboard and system-config endpoints, which were
+in the original approved design but hadn't been assigned to any phase.
 """
 
 from __future__ import annotations
@@ -22,8 +24,10 @@ from backend.jobs.scheduler import start_scheduler, stop_scheduler
 from backend.routers import (
     admin_auth,
     admin_billing,
+    admin_dashboard,
     admin_import,
     admin_residents,
+    admin_system_config,
     auth,
     billing,
     meters,
@@ -65,6 +69,8 @@ app.include_router(payments.admin_router)
 app.include_router(payments.public_router)
 app.include_router(notifications.resident_router)
 app.include_router(notifications.admin_router)
+app.include_router(admin_dashboard.router)
+app.include_router(admin_system_config.router)
 
 
 @app.get("/health")

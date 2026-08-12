@@ -16,10 +16,11 @@ from backend.db.base import Base
 from backend.db.models.admin_user import AdminUser
 from backend.db.models.billing_period import BillingPeriod
 from backend.db.models.community import Community
-from backend.db.models.enums import BillingPeriodStatus, MeterReadingStatus, SubmittedBy
+from backend.db.models.enums import BillingPeriodStatus, ConfigValueType, MeterReadingStatus, SubmittedBy
 from backend.db.models.meter import Meter
 from backend.db.models.meter_reading import MeterReading
 from backend.db.models.resident import Resident
+from backend.db.models.system_configuration import SystemConfiguration
 from models.meter_result import ReviewStatus
 from providers.base import VisionProvider
 
@@ -239,3 +240,23 @@ def needs_review_vision_response(reason: str = "Glare obscures several digits.")
         "needs_retake": True,
         "reason": reason,
     }
+
+
+def seed_system_config(db) -> None:
+    """Populates the same default keys backend/db/seed.py seeds in the
+    real dev DB — the isolated test DB starts empty, since the seed
+    script only ever runs against the real one."""
+    defaults = [
+        ("default_rate_per_unit", "50.00", ConfigValueType.FLOAT),
+        ("default_fine_per_day_overdue", "10.00", ConfigValueType.FLOAT),
+        ("otp_expiry_minutes", "5", ConfigValueType.INT),
+        ("otp_max_attempts", "5", ConfigValueType.INT),
+        ("mobile_number_regex", r"^[6-9]\d{9}$", ConfigValueType.STRING),
+        ("house_number_regex", r"^[A-Za-z0-9\-/]{1,20}$", ConfigValueType.STRING),
+        ("reading_window_duration_days", "15", ConfigValueType.INT),
+        ("payment_window_duration_days", "10", ConfigValueType.INT),
+    ]
+    for key, value, value_type in defaults:
+        if db.get(SystemConfiguration, key) is None:
+            db.add(SystemConfiguration(key=key, value=value, value_type=value_type))
+    db.commit()

@@ -223,6 +223,13 @@ def list_meters(db: Session, resident_id: int) -> list[Meter]:
     return db.query(Meter).filter(Meter.resident_id == resident_id).all()
 
 
+def update_own_email(db: Session, resident: Resident, email: str | None) -> Resident:
+    resident.email = email
+    db.commit()
+    db.refresh(resident)
+    return resident
+
+
 def get_home_summary(db: Session, resident: Resident) -> ResidentHomeResponse:
     """One call for the resident's whole home screen: current billing
     period status, submission/payment state, and unread notification
