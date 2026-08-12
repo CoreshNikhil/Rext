@@ -35,6 +35,23 @@ def get_otp_provider() -> OTPProvider:
     return _otp_provider
 
 
+# Constructed lazily on first use, not at import/startup time — mirrors
+# app.py's st.cache_resource pattern for the same GeminiProvider class.
+# Lazy construction means a missing GEMINI_API_KEY only breaks meter-
+# reading submission, not the entire backend (auth/residents/import don't
+# need the vision provider at all).
+_vision_provider = None
+
+
+def get_vision_provider():
+    global _vision_provider
+    if _vision_provider is None:
+        from providers.gemini_provider import GeminiProvider
+
+        _vision_provider = GeminiProvider()
+    return _vision_provider
+
+
 def get_db() -> Generator[Session, None, None]:
     db = SessionLocal()
     try:

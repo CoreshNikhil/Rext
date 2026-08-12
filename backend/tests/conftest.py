@@ -7,12 +7,22 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from datetime import date, timedelta
+from decimal import Decimal
+
+from backend.core import deps, security
 from backend.db import models  # noqa: F401 - registers every table on Base.metadata
 from backend.db.base import Base
+from backend.db.models.admin_user import AdminUser
+from backend.db.models.billing_period import BillingPeriod
+from backend.db.models.community import Community
+from backend.db.models.enums import BillingPeriodStatus
+from backend.db.models.meter import Meter
+from backend.db.models.resident import Resident
+from providers.base import VisionProvider
 
 
-@pytest.fixture()
-def db_session():
+def _new_test_engine():
     # In-memory SQLite + StaticPool: one connection shared across the whole
     # test (plain in-memory SQLite is per-connection and would otherwise
     # lose all tables between statements).
@@ -29,6 +39,12 @@ def db_session():
         cursor.close()
 
     Base.metadata.create_all(bind=engine)
+    return engine
+
+
+@pytest.fixture()
+def db_session():
+    engine = _new_test_engine()
     session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False)
     session: Session = session_factory()
     try:
@@ -36,3 +52,154 @@ def db_session():
     finally:
         session.close()
         engine.dispose()
+
+
+@pytest.fixture()
+def client_and_session():
+    """A TestClient wired against the real app, with get_db overridden to
+    use an isolated in-memory DB, plus a raw session for test setup/
+    assertions against that same DB."""
+    from fastapi.testclient import TestClient
+
+    from backend.main import app
+
+    engine = _new_test_engine()
+    test_session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+
+    def override_get_db():
+        db = test_session_factory()
+        try:
+            yield db
+        finally:
+            db.close()
+
+    app.dependency_overrides[deps.get_db] = override_get_db
+    client = TestClient(app)
+
+    setup_session = test_session_factory()
+    try:
+        yield client, setup_session
+    finally:
+        setup_session.close()
+        app.dependency_overrides.clear()
+        engine.dispose()
+
+
+def seed_resident(
+    db, *, onboarded: bool = False, house_number: str = "A-204", mobile: str = "9876543210"
+) -> Resident:
+    community = db.query(Community).first()
+    if community is None:
+        community = Community(name="Test Community")
+        db.add(community)
+        db.flush()
+
+    resident = Resident(
+        community_id=community.community_id,
+        house_number=house_number,
+        full_name="Test Resident",
+        mobile_number=mobile,
+        password_hash=security.hash_password("OldPass123!") if onboarded else None,
+    )
+    db.add(resident)
+    db.commit()
+    db.refresh(resident)
+    return resident
+
+
+def seed_admin(db, *, email: str = "admin@example.com", password: str = "AdminPass123!") -> AdminUser:
+    community = db.query(Community).first()
+    if community is None:
+        community = Community(name="Test Community")
+        db.add(community)
+        db.flush()
+
+    admin = AdminUser(
+        community_id=community.community_id,
+        email=email,
+        full_name="Test Admin",
+        password_hash=security.hash_password(password),
+    )
+    db.add(admin)
+    db.commit()
+    db.refresh(admin)
+    return admin
+
+
+def seed_meter(db, resident: Resident, *, serial: str = "MTR-TEST-001") -> Meter:
+    meter = Meter(resident_id=resident.resident_id, meter_serial_number=serial)
+    db.add(meter)
+    db.commit()
+    db.refresh(meter)
+    return meter
+
+
+def close_billing_period(db, period: BillingPeriod) -> None:
+    period.status = BillingPeriodStatus.READINGS_CLOSED
+    db.commit()
+
+
+def seed_billing_period(
+    db, community_id: int, *, status: BillingPeriodStatus = BillingPeriodStatus.OPEN_FOR_READINGS, period_label: str = "2026-08"
+) -> BillingPeriod:
+    period = BillingPeriod(
+        community_id=community_id,
+        period_label=period_label,
+        reading_window_start=date.today() - timedelta(days=1),
+        reading_window_end=date.today() + timedelta(days=14),
+        payment_due_date=date.today() + timedelta(days=21),
+        rate_per_unit=Decimal("50.00"),
+        fine_per_day_overdue=Decimal("10.00"),
+        status=status,
+    )
+    db.add(period)
+    db.commit()
+    db.refresh(period)
+    return period
+
+
+class FakeVisionProvider(VisionProvider):
+    """Deterministic test double for VisionProvider — avoids real network
+    calls/cost for tests that don't specifically need to prove the live
+    Gemini integration works (that's covered separately by a dedicated
+    real-API test)."""
+
+    def __init__(self, response: dict):
+        self.response = response
+        self.call_count = 0
+
+    def extract_reading(self, request) -> dict:
+        self.call_count += 1
+        return self.response
+
+
+def accepted_vision_response(
+    *, raw_digits: str = "00115197", reading: str = "00115.197", confidence: float = 0.95, unit: str = "m3"
+) -> dict:
+    return {
+        "meter_detected": True,
+        "display_detected": True,
+        "raw_digits": raw_digits,
+        "reading": reading,
+        "unit": unit,
+        "serial_number": None,
+        "confidence": confidence,
+        "image_quality": "acceptable",
+        "needs_retake": False,
+        "reason": "",
+    }
+
+
+def needs_review_vision_response(reason: str = "Glare obscures several digits.") -> dict:
+    return {
+        "meter_detected": True,
+        "display_detected": True,
+        "raw_digits": None,
+        "reading": None,
+        "unit": None,
+        "serial_number": None,
+        "confidence": 0.3,
+        "image_quality": "poor",
+        "needs_retake": True,
+        "reason": reason,
+    }

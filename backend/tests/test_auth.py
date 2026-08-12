@@ -9,90 +9,10 @@ from datetime import timedelta
 
 import pytest
 from fastapi.security import HTTPAuthorizationCredentials
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, event
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
 from backend.core import deps, security
-from backend.db import models  # noqa: F401 - registers every table on Base.metadata
-from backend.db.base import Base
-from backend.db.models.admin_user import AdminUser
-from backend.db.models.community import Community
-from backend.db.models.resident import Resident
-from backend.main import app
-
-
-@pytest.fixture()
-def client_and_session():
-    engine = create_engine(
-        "sqlite:///:memory:",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-
-    @event.listens_for(engine, "connect")
-    def _enable_foreign_keys(dbapi_connection, connection_record) -> None:
-        cursor = dbapi_connection.cursor()
-        cursor.execute("PRAGMA foreign_keys=ON")
-        cursor.close()
-
-    Base.metadata.create_all(bind=engine)
-    test_session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False)
-
-    def override_get_db():
-        db = test_session_factory()
-        try:
-            yield db
-        finally:
-            db.close()
-
-    app.dependency_overrides[deps.get_db] = override_get_db
-    client = TestClient(app)
-
-    setup_session = test_session_factory()
-    try:
-        yield client, setup_session
-    finally:
-        setup_session.close()
-        app.dependency_overrides.clear()
-        engine.dispose()
-
-
-def _seed_resident(db, *, onboarded: bool = False, house_number: str = "A-204", mobile: str = "9876543210") -> Resident:
-    community = db.query(Community).first()
-    if community is None:
-        community = Community(name="Test Community")
-        db.add(community)
-        db.flush()
-
-    resident = Resident(
-        community_id=community.community_id,
-        house_number=house_number,
-        full_name="Test Resident",
-        mobile_number=mobile,
-        password_hash=security.hash_password("OldPass123!") if onboarded else None,
-    )
-    db.add(resident)
-    db.commit()
-    db.refresh(resident)
-    return resident
-
-
-def _seed_admin(db, *, email: str = "admin@example.com", password: str = "AdminPass123!") -> AdminUser:
-    community = db.query(Community).first()
-    if community is None:
-        community = Community(name="Test Community")
-        db.add(community)
-        db.flush()
-
-    admin = AdminUser(
-        community_id=community.community_id, email=email, full_name="Test Admin", password_hash=security.hash_password(password)
-    )
-    db.add(admin)
-    db.commit()
-    db.refresh(admin)
-    return admin
+from backend.tests.conftest import seed_admin as _seed_admin
+from backend.tests.conftest import seed_resident as _seed_resident
 
 
 # --- Signup --------------------------------------------------------------

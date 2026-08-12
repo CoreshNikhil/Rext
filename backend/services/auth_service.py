@@ -132,7 +132,7 @@ def _decode_scoped_token(token: str, expected_scope: str) -> dict:
     return claims
 
 
-def _revoke_all_refresh_tokens(db: Session, subject_type: TokenSubjectType, subject_id: int) -> None:
+def revoke_all_refresh_tokens(db: Session, subject_type: TokenSubjectType, subject_id: int) -> None:
     db.query(RefreshToken).filter(
         RefreshToken.subject_type == subject_type,
         RefreshToken.subject_id == subject_id,
@@ -246,7 +246,7 @@ def confirm_password_reset(db: Session, reset_token: str, new_password: str) -> 
 
     # A password reset invalidates every existing session, not just the
     # one that requested the reset.
-    _revoke_all_refresh_tokens(db, TokenSubjectType.RESIDENT, resident.resident_id)
+    revoke_all_refresh_tokens(db, TokenSubjectType.RESIDENT, resident.resident_id)
 
 
 # --- Refresh / logout --------------------------------------------------
@@ -264,7 +264,7 @@ def refresh_tokens(db: Session, raw_refresh_token: str) -> TokenPairResponse:
         # may mean it was stolen. Simplified reuse response at this scale:
         # revoke every active refresh token for the subject, rather than
         # precisely walking the replaced_by_token_id chain.
-        _revoke_all_refresh_tokens(db, token_row.subject_type, token_row.subject_id)
+        revoke_all_refresh_tokens(db, token_row.subject_type, token_row.subject_id)
         raise RefreshTokenReuseDetectedError("This session is no longer valid. Please log in again.")
 
     if token_row.expires_at < _now():
