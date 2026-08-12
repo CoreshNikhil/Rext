@@ -111,7 +111,8 @@ def update_billing_period(
 
 def _transition(
     db: Session,
-    admin: AdminUser,
+    actor_type: ActorType,
+    actor_id: int | None,
     period: BillingPeriod,
     from_status: BillingPeriodStatus,
     to_status: BillingPeriodStatus,
@@ -130,8 +131,8 @@ def _transition(
 
     audit_service.record(
         db,
-        actor_type=ActorType.ADMIN,
-        actor_id=admin.admin_id,
+        actor_type=actor_type,
+        actor_id=actor_id,
         action=f"billing_period.{action}",
         entity_type="billing_period",
         entity_id=period.billing_period_id,
@@ -143,25 +144,67 @@ def _transition(
 
 def open_billing_period(db: Session, admin: AdminUser, billing_period_id: int) -> BillingPeriod:
     period = get_billing_period(db, billing_period_id)
-    return _transition(db, admin, period, BillingPeriodStatus.DRAFT, BillingPeriodStatus.OPEN_FOR_READINGS, "open")
+    return _transition(
+        db, ActorType.ADMIN, admin.admin_id, period, BillingPeriodStatus.DRAFT, BillingPeriodStatus.OPEN_FOR_READINGS, "open"
+    )
+
+
+def system_open_billing_period(db: Session, billing_period_id: int) -> BillingPeriod:
+    """Same transition, triggered by a scheduled job rather than an admin
+    click — audit-logged with actor_type=SYSTEM so it's distinguishable."""
+    period = get_billing_period(db, billing_period_id)
+    return _transition(
+        db, ActorType.SYSTEM, None, period, BillingPeriodStatus.DRAFT, BillingPeriodStatus.OPEN_FOR_READINGS, "open"
+    )
 
 
 def close_readings(db: Session, admin: AdminUser, billing_period_id: int) -> BillingPeriod:
     period = get_billing_period(db, billing_period_id)
     return _transition(
-        db, admin, period, BillingPeriodStatus.OPEN_FOR_READINGS, BillingPeriodStatus.READINGS_CLOSED, "close_readings"
+        db,
+        ActorType.ADMIN,
+        admin.admin_id,
+        period,
+        BillingPeriodStatus.OPEN_FOR_READINGS,
+        BillingPeriodStatus.READINGS_CLOSED,
+        "close_readings",
+    )
+
+
+def system_close_readings(db: Session, billing_period_id: int) -> BillingPeriod:
+    period = get_billing_period(db, billing_period_id)
+    return _transition(
+        db,
+        ActorType.SYSTEM,
+        None,
+        period,
+        BillingPeriodStatus.OPEN_FOR_READINGS,
+        BillingPeriodStatus.READINGS_CLOSED,
+        "close_readings",
     )
 
 
 def close_billing_period(db: Session, admin: AdminUser, billing_period_id: int) -> BillingPeriod:
     period = get_billing_period(db, billing_period_id)
-    return _transition(db, admin, period, BillingPeriodStatus.BILLED, BillingPeriodStatus.CLOSED, "close")
+    return _transition(
+        db, ActorType.ADMIN, admin.admin_id, period, BillingPeriodStatus.BILLED, BillingPeriodStatus.CLOSED, "close"
+    )
 
 
 # --- Bill generation -------------------------------------------------------
 
 
 def generate_bills_for_period(db: Session, admin: AdminUser, billing_period_id: int) -> dict:
+    return _generate_bills_for_period(db, ActorType.ADMIN, admin.admin_id, billing_period_id)
+
+
+def system_generate_bills_for_period(db: Session, billing_period_id: int) -> dict:
+    """Same generation, triggered by a scheduled job — audit-logged with
+    actor_type=SYSTEM so it's distinguishable from an admin click."""
+    return _generate_bills_for_period(db, ActorType.SYSTEM, None, billing_period_id)
+
+
+def _generate_bills_for_period(db: Session, actor_type: ActorType, actor_id: int | None, billing_period_id: int) -> dict:
     """Idempotent/incremental: only bills residents with a finalized
     reading and no existing bill yet in this period. Safe to call more
     than once (e.g. after a late admin override adds a new finalized
@@ -228,8 +271,8 @@ def generate_bills_for_period(db: Session, admin: AdminUser, billing_period_id: 
 
     audit_service.record(
         db,
-        actor_type=ActorType.ADMIN,
-        actor_id=admin.admin_id,
+        actor_type=actor_type,
+        actor_id=actor_id,
         action="billing_period.generate_bills",
         entity_type="billing_period",
         entity_id=period.billing_period_id,

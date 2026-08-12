@@ -26,6 +26,18 @@ DEFAULT_CONFIG = [
     ("otp_max_attempts", str(settings.OTP_MAX_ATTEMPTS), ConfigValueType.INT, "Max verification attempts per OTP"),
     ("mobile_number_regex", r"^[6-9]\d{9}$", ConfigValueType.STRING, "Validation pattern for resident mobile numbers"),
     ("house_number_regex", r"^[A-Za-z0-9\-/]{1,20}$", ConfigValueType.STRING, "Validation pattern for house numbers"),
+    (
+        "reading_window_duration_days",
+        "15",
+        ConfigValueType.INT,
+        "Days a billing period stays open for reading submissions, used when auto-creating the next DRAFT period",
+    ),
+    (
+        "payment_window_duration_days",
+        "10",
+        ConfigValueType.INT,
+        "Days after the reading window ends before payment is due, used when auto-creating the next DRAFT period",
+    ),
 ]
 
 

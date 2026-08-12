@@ -6,19 +6,40 @@ the existing app.py Streamlit prototype:
 
     uvicorn backend.main:app --reload
 
-Phase 6 adds payments (mock provider, Bill -> PAID wiring) on top of
-Phases 1-5. Notifications/scheduled jobs are added in later phases.
+Phase 7 adds notifications and the scheduled-job system (billing-cycle
+kickoff, deadline checks, fine accrual, reminders) on top of Phases 1-6.
 """
 
 from __future__ import annotations
+
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.core.config import settings
-from backend.routers import admin_auth, admin_billing, admin_import, admin_residents, auth, billing, meters, payments
+from backend.jobs.scheduler import start_scheduler, stop_scheduler
+from backend.routers import (
+    admin_auth,
+    admin_billing,
+    admin_import,
+    admin_residents,
+    auth,
+    billing,
+    meters,
+    notifications,
+    payments,
+)
 
-app = FastAPI(title="Gas Billing System API", version="0.1.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    start_scheduler()
+    yield
+    stop_scheduler()
+
+
+app = FastAPI(title="Gas Billing System API", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -40,6 +61,8 @@ app.include_router(admin_billing.bill_router)
 app.include_router(payments.resident_router)
 app.include_router(payments.admin_router)
 app.include_router(payments.public_router)
+app.include_router(notifications.resident_router)
+app.include_router(notifications.admin_router)
 
 
 @app.get("/health")
