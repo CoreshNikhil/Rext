@@ -1,3 +1,26 @@
+# Gas Billing System
+
+A residential gas meter reading and billing system: residents submit a
+photo of their meter, [MeterVision](#metervision-v01-prototype) (this
+repo's original AI component, detailed below) extracts the reading, and
+the rest of the system runs the billing cycle around it — resident
+confirmation, admin review, bill generation, and payments.
+
+## Components
+
+| Component | What it is | Docs |
+|---|---|---|
+| `backend/` | FastAPI REST API — auth, residents, meter readings, billing, payments, notifications, scheduled jobs, rate limiting | [backend/README.md](backend/README.md) |
+| `admin_web/` | Streamlit admin dashboard (residents, billing, imports, config) | [admin_web/README.md](admin_web/README.md) |
+| `mobile/` | Flutter resident app — signup, scan meter, bills, payments (Android/iOS/web) | [mobile/README.md](mobile/README.md) |
+| `app.py`, `vision/`, `providers/`, `models/`, `config/` | MeterVision — the AI meter-reading extraction the backend calls into directly, in-process | this file, below |
+
+Each component is independently runnable and has its own setup section in
+its README. Start with the backend (its README covers DB migrations and
+seeding), since `admin_web` and `mobile` both depend on it being up.
+
+---
+
 # MeterVision (v0.1 prototype)
 
 AI-powered extraction of the numeric reading from a photograph of a gas,
@@ -149,15 +172,18 @@ non-accepted results.
 
 ## Design notes / what's deliberately NOT implemented yet
 
-Per the v0.1 scope, the following are intentionally out of scope for now
-but the architecture leaves room for them:
+Per MeterVision's own v0.1 scope (as a standalone AI component — see
+"Components" above for the database, auth, REST API, admin dashboard, and
+mobile app, all of which now exist as separate parts of the wider
+system), the following are intentionally out of scope for MeterVision
+itself:
 
 - automatic meter bounding-box / display-region detection (currently the
   full image + light preprocessing is sent to the vision model, which does
   its own localization)
-- camera capture / live camera guidance
+- live camera guidance beyond a single capture (the mobile app's camera
+  button hands off to the OS camera UI, not a custom in-app viewfinder)
 - custom-trained digit recognition model
-- database storage, user accounts, REST API, mobile app
 
 Adding a second vision provider only requires implementing
 `providers/base.VisionProvider` and wiring it into `config.settings` /
