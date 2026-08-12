@@ -12,6 +12,18 @@
       "runtimeExecutable": ".venv/bin/uvicorn",
       "runtimeArgs": ["backend.main:app", "--host", "0.0.0.0", "--port", "8000"],
       "port": 8000
+    },
+    {
+      "name": "admin_web",
+      "runtimeExecutable": ".venv/bin/streamlit",
+      "runtimeArgs": ["run", "admin_web/Home.py", "--server.headless=true", "--server.address=0.0.0.0", "--server.port=8502"],
+      "port": 8502
+    },
+    {
+      "name": "mobile_web",
+      "runtimeExecutable": "mobile/run_web.sh",
+      "runtimeArgs": [],
+      "port": 8503
     }
   ]
 }

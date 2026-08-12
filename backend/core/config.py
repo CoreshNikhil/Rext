@@ -8,9 +8,10 @@ coordinate which one "owns" a given setting.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Annotated
 
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ENV_FILE = REPO_ROOT / ".env"
@@ -31,7 +32,12 @@ class Settings(BaseSettings):
     OTP_EXPIRY_MINUTES: int = 5
     OTP_MAX_ATTEMPTS: int = 5
 
-    CORS_ORIGINS: list[str] = Field(default_factory=lambda: ["http://localhost:8501"])
+    # NoDecode: pydantic-settings otherwise tries to JSON-parse env values
+    # for any "complex" (non-scalar) field type before our own validator
+    # ever sees them, which fails on a plain comma-separated string. This
+    # opts CORS_ORIGINS out of that pre-parse so `_split_comma_separated`
+    # is the only thing that ever interprets the raw value.
+    CORS_ORIGINS: Annotated[list[str], NoDecode] = Field(default_factory=lambda: ["http://localhost:8501"])
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
